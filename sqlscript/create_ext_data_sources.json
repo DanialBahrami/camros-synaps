@@ -1,5 +1,5 @@
 {
-	"name": "create_extrenal_data_source",
+	"name": "create_ext_data_sources",
 	"properties": {
 		"folder": {
 			"name": "ldw"
