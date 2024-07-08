@@ -1,0 +1,20 @@
+{
+	"name": "crt_dbs",
+	"properties": {
+		"folder": {
+			"name": "ldw"
+		},
+		"content": {
+			"query": "USE master\nGO\n\nCREATE DATABASE epd_ldw\nGO\n\nALTER DATABASE epd_ldw COLLATE Latin1_General_100_BIN2_UTF8\nGO\n\nUSE epd_ldw\nGO\n\nCREATE SCHEMA bronze\nGO\n\nCREATE SCHEMA silver\nGO\n\nCREATE SCHEMA gold\nGO\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "master",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}
