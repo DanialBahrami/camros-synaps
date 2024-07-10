@@ -1,0 +1,195 @@
+{
+	"name": "convert_parquet",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"bigDataPool": {
+			"referenceName": "sparkpoolshs",
+			"type": "BigDataPoolReference"
+		},
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "421b47f9-975f-4993-941f-ef9ef09d536e"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"enableDebugMode": false,
+			"kernelspec": {
+				"name": "synapse_pyspark",
+				"display_name": "Synapse PySpark"
+			},
+			"language_info": {
+				"name": "python"
+			},
+			"a365ComputeOptions": {
+				"id": "/subscriptions/327d3d2b-5fad-4059-9ee2-3fd8fe732331/resourceGroups/rg-shs-southuk/providers/Microsoft.Synapse/workspaces/syn-ws-shs/bigDataPools/sparkpoolshs",
+				"name": "sparkpoolshs",
+				"type": "Spark",
+				"endpoint": "https://syn-ws-shs.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpoolshs",
+				"auth": {
+					"type": "AAD",
+					"authResource": "https://dev.azuresynapse.net"
+				},
+				"sparkVersion": "3.4",
+				"nodeCount": 3,
+				"cores": 4,
+				"memory": 28,
+				"automaticScaleJobs": false
+			},
+			"sessionKeepAliveTimeout": 10
+		},
+		"cells": [
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					},
+					"microsoft": {
+						"language": "python"
+					}
+				},
+				"source": [
+					"%%pyspark\n",
+					"from pyspark.sql import SparkSession\n",
+					"\n",
+					"# Initialize Spark session\n",
+					"spark = SparkSession.builder \\\n",
+					"    .appName(\"CSV to Parquet\") \\\n",
+					"    .getOrCreate()\n",
+					"\n",
+					"# Define paths\n",
+					"raw_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/raw/\"\n",
+					"csv_file_path = f\"{raw_zone_path}epd_202404.csv\"\n",
+					"refined_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/refined/\"\n",
+					"\n",
+					"# Read CSV file\n",
+					"df = spark.read.option(\"header\", \"true\").csv(csv_file_path)\n",
+					"\n",
+					"# Convert to Parquet with partitioning on YEAR_MONTH\n",
+					"df.write.partitionBy(\"YEAR_MONTH\").parquet(refined_zone_path, mode=\"append\")\n",
+					""
+				],
+				"execution_count": 1
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"spark.stop()"
+				],
+				"execution_count": 2
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					},
+					"microsoft": {
+						"language": "sparksql"
+					}
+				},
+				"source": [
+					"%%sql\n",
+					"CREATE DATABASE IF NOT EXISTS epd_ldw_spark\n",
+					"LOCATION 'abfss://container-epd@dlsshs.dfs.core.windows.net/refined/';"
+				],
+				"execution_count": null
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					},
+					"microsoft": {
+						"language": "sparksql"
+					}
+				},
+				"source": [
+					"%%sql\n",
+					"USE epd_ldw\n",
+					"\n",
+					"IF OBJECT_ID('silver.england') IS NOT NULL\n",
+					"    DROP EXTERNAL TABLE silver.england;\n",
+					"\n",
+					"CREATE EXTERNAL TABLE silver.england (\n",
+					"\t[YEAR_MONTH][BIGINT] NULL,\n",
+					"\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n",
+					"\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n",
+					"\t[ICB_NAME][varchar](500) NULL,\n",
+					"\t[ICB_CODE][varchar](500) NULL,\n",
+					"\t[PCO_NAME][varchar](500) NULL,\n",
+					"\t[PCO_CODE][varchar](500) NULL,\n",
+					"\t[PRACTICE_NAME][varchar](500) NULL,\n",
+					"\t[PRACTICE_CODE][varchar](500) NULL,\n",
+					"\t[ADDRESS_1][varchar](500) NULL,\n",
+					"\t[ADDRESS_2][varchar](500) NULL,\n",
+					"\t[ADDRESS_3][varchar](500) NULL,\n",
+					"\t[ADDRESS_4][varchar](500) NULL,\n",
+					"\t[POSTCODE][varchar](500) NULL,\n",
+					"\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n",
+					"\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n",
+					"\t[BNF_CODE][varchar](500) NULL,\n",
+					"\t[BNF_DESCRIPTION][varchar](500) NULL,\n",
+					"\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n",
+					"\t[QUANTITY][FLOAT] NULL,\n",
+					"\t[ITEMS][INT] NULL,\n",
+					"\t[TOTAL_QUANTITY][FLOAT] NULL,\n",
+					"\t[ADQUSAGE][FLOAT] NULL,\n",
+					"\t[NIC][FLOAT] NULL,\n",
+					"\t[ACTUAL_COST][FLOAT] NULL,\n",
+					"\t[UNIDENTIFIED][varchar](500) NULL\n",
+					"\t)\n",
+					"\tWITH (\n",
+					"\tLOCATION = '/',\n",
+					"    DATA_SOURCE = epd_src,\n",
+					"    FILE_FORMAT = parquet_file_format\n",
+					"\t)\n",
+					"\n",
+					"\n",
+					"SELECT TOP 100 * FROM silver.england"
+				],
+				"execution_count": 4
+			}
+		]
+	}
+}
