@@ -17,7 +17,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "a4fa8363-183d-40c2-8ee5-2c725bb0e7e6"
+				"spark.autotune.trackingId": "5c2c67ac-3e56-47d5-9c28-49d4f4e00514"
 			}
 		},
 		"metadata": {
@@ -48,24 +48,6 @@
 			"sessionKeepAliveTimeout": 10
 		},
 		"cells": [
-			{
-				"cell_type": "code",
-				"metadata": {
-					"jupyter": {
-						"source_hidden": false,
-						"outputs_hidden": false
-					},
-					"nteract": {
-						"transient": {
-							"deleting": false
-						}
-					}
-				},
-				"source": [
-					"spark.stop()"
-				],
-				"execution_count": 9
-			},
 			{
 				"cell_type": "code",
 				"metadata": {
@@ -123,7 +105,7 @@
 					"    .appName(\"CSV to Parquet England\") \\\n",
 					"    .getOrCreate()"
 				],
-				"execution_count": 10
+				"execution_count": 1
 			},
 			{
 				"cell_type": "code",
@@ -154,7 +136,7 @@
 					"# Stop Spark session\n",
 					"spark.stop()"
 				],
-				"execution_count": 6
+				"execution_count": 2
 			}
 		]
 	}
