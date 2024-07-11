@@ -1,5 +1,5 @@
 {
-	"name": "convert_parquet",
+	"name": "spark_csv_parquet_england",
 	"properties": {
 		"nbformat": 4,
 		"nbformat_minor": 2,
@@ -17,7 +17,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "421b47f9-975f-4993-941f-ef9ef09d536e"
+				"spark.autotune.trackingId": "a4fa8363-183d-40c2-8ee5-2c725bb0e7e6"
 			}
 		},
 		"metadata": {
@@ -59,51 +59,12 @@
 						"transient": {
 							"deleting": false
 						}
-					},
-					"microsoft": {
-						"language": "python"
-					}
-				},
-				"source": [
-					"%%pyspark\n",
-					"from pyspark.sql import SparkSession\n",
-					"\n",
-					"# Initialize Spark session\n",
-					"spark = SparkSession.builder \\\n",
-					"    .appName(\"CSV to Parquet\") \\\n",
-					"    .getOrCreate()\n",
-					"\n",
-					"# Define paths\n",
-					"raw_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/raw/\"\n",
-					"csv_file_path = f\"{raw_zone_path}epd_202404.csv\"\n",
-					"refined_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/refined/\"\n",
-					"\n",
-					"# Read CSV file\n",
-					"df = spark.read.option(\"header\", \"true\").csv(csv_file_path)\n",
-					"\n",
-					"# Convert to Parquet with partitioning on YEAR_MONTH\n",
-					"df.write.partitionBy(\"YEAR_MONTH\").parquet(refined_zone_path, mode=\"append\")\n",
-					""
-				],
-				"execution_count": 1
-			},
-			{
-				"cell_type": "code",
-				"metadata": {
-					"jupyter": {
-						"source_hidden": false,
-						"outputs_hidden": false
-					},
-					"nteract": {
-						"transient": {
-							"deleting": false
-						}
 					}
 				},
 				"source": [
 					"spark.stop()"
 				],
-				"execution_count": 2
+				"execution_count": 9
 			},
 			{
 				"cell_type": "code",
@@ -116,17 +77,53 @@
 						"transient": {
 							"deleting": false
 						}
-					},
-					"microsoft": {
-						"language": "sparksql"
 					}
 				},
 				"source": [
-					"%%sql\n",
-					"CREATE DATABASE IF NOT EXISTS epd_ldw_spark\n",
-					"LOCATION 'abfss://container-epd@dlsshs.dfs.core.windows.net/refined/';"
+					"from pyspark.sql import SparkSession\n",
+					"from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType\n",
+					"\n",
+					"# Define paths\n",
+					"raw_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/raw/\"\n",
+					"refined_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/refined/\"\n",
+					"\n",
+					"\n",
+					"# Define schema\n",
+					"schema = StructType([\n",
+					"  StructField(\"YEAR_MONTH\", IntegerType(), True),\n",
+					"  StructField(\"REGIONAL_OFFICE_NAME\", StringType(), True),\n",
+					"  StructField(\"REGIONAL_OFFICE_CODE\", StringType(), True),\n",
+					"  StructField(\"ICB_NAME\", StringType(), True),\n",
+					"  StructField(\"ICB_CODE\", StringType(), True),\n",
+					"  StructField(\"PCO_NAME\", StringType(), True),\n",
+					"  StructField(\"PCO_CODE\", StringType(), True),\n",
+					"  StructField(\"PRACTICE_NAME\", StringType(), True),\n",
+					"  StructField(\"PRACTICE_CODE\", StringType(), True),\n",
+					"  StructField(\"ADDRESS_1\", StringType(), True),\n",
+					"  StructField(\"ADDRESS_2\", StringType(), True),\n",
+					"  StructField(\"ADDRESS_3\", StringType(), True),\n",
+					"  StructField(\"ADDRESS_4\", StringType(), True),\n",
+					"  StructField(\"POSTCODE\", StringType(), True),\n",
+					"  StructField(\"BNF_CHEMICAL_SUBSTANCE\", StringType(), True),\n",
+					"  StructField(\"CHEMICAL_SUBSTANCE_BNF_DESCR\", StringType(), True),\n",
+					"  StructField(\"BNF_CODE\", StringType(), True),\n",
+					"  StructField(\"BNF_DESCRIPTION\", StringType(), True),\n",
+					"  StructField(\"BNF_CHAPTER_PLUS_CODE\", StringType(), True),\n",
+					"  StructField(\"QUANTITY\", FloatType(), True),\n",
+					"  StructField(\"ITEMS\", IntegerType(), True),\n",
+					"  StructField(\"TOTAL_QUANTITY\", FloatType(), True),\n",
+					"  StructField(\"ADQUSAGE\", FloatType(), True),\n",
+					"  StructField(\"NIC\", FloatType(), True),\n",
+					"  StructField(\"ACTUAL_COST\", FloatType(), True),\n",
+					"  StructField(\"UNIDENTIFIED\", StringType(), True)\n",
+					"])\n",
+					"\n",
+					"# Initialize Spark session\n",
+					"spark = SparkSession.builder \\\n",
+					"    .appName(\"CSV to Parquet England\") \\\n",
+					"    .getOrCreate()"
 				],
-				"execution_count": null
+				"execution_count": 10
 			},
 			{
 				"cell_type": "code",
@@ -139,56 +136,25 @@
 						"transient": {
 							"deleting": false
 						}
-					},
-					"microsoft": {
-						"language": "sparksql"
 					}
 				},
 				"source": [
-					"%%sql\n",
-					"USE epd_ldw\n",
+					"from pyspark.sql.functions import col, split\n",
 					"\n",
-					"IF OBJECT_ID('silver.england') IS NOT NULL\n",
-					"    DROP EXTERNAL TABLE silver.england;\n",
+					"# Read CSV file with header, enforcing schema\n",
+					"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + \"*.csv\")\n",
 					"\n",
-					"CREATE EXTERNAL TABLE silver.england (\n",
-					"\t[YEAR_MONTH][BIGINT] NULL,\n",
-					"\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n",
-					"\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n",
-					"\t[ICB_NAME][varchar](500) NULL,\n",
-					"\t[ICB_CODE][varchar](500) NULL,\n",
-					"\t[PCO_NAME][varchar](500) NULL,\n",
-					"\t[PCO_CODE][varchar](500) NULL,\n",
-					"\t[PRACTICE_NAME][varchar](500) NULL,\n",
-					"\t[PRACTICE_CODE][varchar](500) NULL,\n",
-					"\t[ADDRESS_1][varchar](500) NULL,\n",
-					"\t[ADDRESS_2][varchar](500) NULL,\n",
-					"\t[ADDRESS_3][varchar](500) NULL,\n",
-					"\t[ADDRESS_4][varchar](500) NULL,\n",
-					"\t[POSTCODE][varchar](500) NULL,\n",
-					"\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n",
-					"\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n",
-					"\t[BNF_CODE][varchar](500) NULL,\n",
-					"\t[BNF_DESCRIPTION][varchar](500) NULL,\n",
-					"\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n",
-					"\t[QUANTITY][FLOAT] NULL,\n",
-					"\t[ITEMS][INT] NULL,\n",
-					"\t[TOTAL_QUANTITY][FLOAT] NULL,\n",
-					"\t[ADQUSAGE][FLOAT] NULL,\n",
-					"\t[NIC][FLOAT] NULL,\n",
-					"\t[ACTUAL_COST][FLOAT] NULL,\n",
-					"\t[UNIDENTIFIED][varchar](500) NULL\n",
-					"\t)\n",
-					"\tWITH (\n",
-					"\tLOCATION = '/',\n",
-					"    DATA_SOURCE = epd_src,\n",
-					"    FILE_FORMAT = parquet_file_format\n",
-					"\t)\n",
+					"# Extract year and month from YEAR_MONTH\n",
+					"df = df.withColumn(\"YEAR\", col(\"YEAR_MONTH\").cast(\"string\").substr(1, 4).cast(\"int\"))\n",
+					"df = df.withColumn(\"MONTH\", col(\"YEAR_MONTH\").cast(\"string\").substr(5, 2).cast(\"int\"))\n",
 					"\n",
+					"# Convert to Parquet with partitioning on existing YEAR_MONTH column and append mode\n",
+					"df.write.partitionBy(\"YEAR_MONTH\").parquet(refined_zone_path, mode=\"append\")\n",
 					"\n",
-					"SELECT TOP 100 * FROM silver.england"
+					"# Stop Spark session\n",
+					"spark.stop()"
 				],
-				"execution_count": 4
+				"execution_count": 6
 			}
 		]
 	}
