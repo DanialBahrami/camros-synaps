@@ -1,0 +1,461 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "syn-ws-shs"
+		},
+		"syn-ws-shs-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'syn-ws-shs-WorkspaceDefaultSqlServer'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:syn-ws-shs.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"rs_shs_nhsopendata_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://opendata.nhsbsa.net/api/3/action/"
+		},
+		"syn-ws-shs-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://dlsshs.dfs.core.windows.net"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/ds_shs_resources')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "rs_shs_nhsopendata",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"query_param": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "RestResource",
+				"typeProperties": {
+					"relativeUrl": {
+						"value": "@dataset().query_param",
+						"type": "Expression"
+					}
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/rs_shs_nhsopendata')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/rs_shs_nhsopendata')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "RestService",
+				"typeProperties": {
+					"url": "[parameters('rs_shs_nhsopendata_properties_typeProperties_url')]",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/syn-ws-shs-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('syn-ws-shs-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/syn-ws-shs-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('syn-ws-shs-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/brz_crt_tbl_england')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "ldw/bronze"
+				},
+				"content": {
+					"query": "USE epd_ldw\nGO\n\nIF OBJECT_ID('bronze.england') IS NOT NULL\n    DROP EXTERNAL TABLE bronze.england;\n\nCREATE EXTERNAL TABLE bronze.england (\n\t[YEAR_MONTH][BIGINT] NULL,\n\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n\t[ICB_NAME][varchar](500) NULL,\n\t[ICB_CODE][varchar](500) NULL,\n\t[PCO_NAME][varchar](500) NULL,\n\t[PCO_CODE][varchar](500) NULL,\n\t[PRACTICE_NAME][varchar](500) NULL,\n\t[PRACTICE_CODE][varchar](500) NULL,\n\t[ADDRESS_1][varchar](500) NULL,\n\t[ADDRESS_2][varchar](500) NULL,\n\t[ADDRESS_3][varchar](500) NULL,\n\t[ADDRESS_4][varchar](500) NULL,\n\t[POSTCODE][varchar](500) NULL,\n\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n\t[BNF_CODE][varchar](500) NULL,\n\t[BNF_DESCRIPTION][varchar](500) NULL,\n\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n\t[QUANTITY][FLOAT] NULL,\n\t[ITEMS][INT] NULL,\n\t[TOTAL_QUANTITY][FLOAT] NULL,\n\t[ADQUSAGE][FLOAT] NULL,\n\t[NIC][FLOAT] NULL,\n\t[ACTUAL_COST][FLOAT] NULL,\n\t[UNIDENTIFIED][varchar](500) NULL\n\t)\n\tWITH (\n\tLOCATION = 'raw/epd_202404.csv'\n\t,DATA_SOURCE = epd_src\n\t,FILE_FORMAT = csv_file_format_pv1\n\t)\nGO\n\n\nSELECT TOP 100 * FROM bronze.england\nGO\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "epd_ldw",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/cost_control_sqlpool')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "utils"
+				},
+				"content": {
+					"query": "SELECT * FROM sys.dm_external_data_processed;\n\nSELECT * FROM sys.configurations\nWHERE name LIKE 'Data Processed %';\n\nsp_set_data_processed_limit\n    @type = N'monthly',\n    @limit_tb = 2;\n\nsp_set_data_processed_limit\n    @type = N'weekly',\n    @limit_tb = 1;\n\nsp_set_data_processed_limit\n    @type = N'daily',\n    @limit_tb = 1;   ",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "master",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/create_ext_data_sources')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "ldw"
+				},
+				"content": {
+					"query": "USE epd_ldw;\n\nIF NOT EXISTS (SELECT * FROM sys.external_data_sources WHERE name = 'edp_src')\n    CREATE EXTERNAL DATA SOURCE edp_src\n    WITH\n    (    LOCATION         = 'https://dlsshs.dfs.core.windows.net/container-epd'\n    );\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "epd_ldw",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/create_extrenal_data_source')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "ldw"
+				},
+				"content": {
+					"query": "USE epd_ldw;\n\nIF NOT EXISTS (SELECT * FROM sys.external_data_sources WHERE name = 'edp_src')\n    CREATE EXTERNAL DATA SOURCE edp_src\n    WITH\n    (    LOCATION         = 'https://dlsshs.dfs.core.windows.net/container-epd'\n    );\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "epd_ldw",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/crt_dbs')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "ldw"
+				},
+				"content": {
+					"query": "USE master\nGO\n\nCREATE DATABASE epd_ldw\nGO\n\nALTER DATABASE epd_ldw COLLATE Latin1_General_100_BIN2_UTF8\nGO\n\nUSE epd_ldw\nGO\n\nCREATE SCHEMA bronze\nGO\n\nCREATE SCHEMA silver\nGO\n\nCREATE SCHEMA gold\nGO\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "master",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/svr_crt_tbl_england')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "ldw/silver"
+				},
+				"content": {
+					"query": "USE epd_ldw\nGO\n\nIF OBJECT_ID('silver.england') IS NOT NULL\n    DROP EXTERNAL TABLE silver.england;\n\nCREATE EXTERNAL TABLE silver.england (\n\t[YEAR][INT] NULL,\n\t[MONTH][INT] NULL,\n\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n\t[ICB_NAME][varchar](500) NULL,\n\t[ICB_CODE][varchar](500) NULL,\n\t[PCO_NAME][varchar](500) NULL,\n\t[PCO_CODE][varchar](500) NULL,\n\t[PRACTICE_NAME][varchar](500) NULL,\n\t[PRACTICE_CODE][varchar](500) NULL,\n\t[ADDRESS_1][varchar](500) NULL,\n\t[ADDRESS_2][varchar](500) NULL,\n\t[ADDRESS_3][varchar](500) NULL,\n\t[ADDRESS_4][varchar](500) NULL,\n\t[POSTCODE][varchar](500) NULL,\n\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n\t[BNF_CODE][varchar](500) NULL,\n\t[BNF_DESCRIPTION][varchar](500) NULL,\n\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n\t[QUANTITY][FLOAT] NULL,\n\t[ITEMS][INT] NULL,\n\t[TOTAL_QUANTITY][FLOAT] NULL,\n\t[ADQUSAGE][FLOAT] NULL,\n\t[NIC][FLOAT] NULL,\n\t[ACTUAL_COST][FLOAT] NULL,\n\t[UNIDENTIFIED][varchar](500) NULL\n\t)\n\tWITH (\n\tLOCATION = '/refined/**',\n    DATA_SOURCE = epd_src,\n    FILE_FORMAT = parquet_file_format\n\t)\n\n\nSELECT TOP 100 * FROM silver.england",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "epd_ldw",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/spark_csv_parquet_england')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "sparkpoolshs",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "e6b55268-13e8-4e78-a217-146675f75cf9"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"enableDebugMode": false,
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/327d3d2b-5fad-4059-9ee2-3fd8fe732331/resourceGroups/rg-shs-southuk/providers/Microsoft.Synapse/workspaces/syn-ws-shs/bigDataPools/sparkpoolshs",
+						"name": "sparkpoolshs",
+						"type": "Spark",
+						"endpoint": "https://syn-ws-shs.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpoolshs",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net"
+						},
+						"sparkVersion": "3.4",
+						"nodeCount": 3,
+						"cores": 4,
+						"memory": 28,
+						"automaticScaleJobs": false
+					},
+					"sessionKeepAliveTimeout": 10
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"from pyspark.sql import SparkSession\n",
+							"from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType\n",
+							"\n",
+							"# Define paths\n",
+							"raw_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/raw/\"\n",
+							"refined_zone_path = \"abfss://container-epd@dlsshs.dfs.core.windows.net/refined/\"\n",
+							"\n",
+							"\n",
+							"# Define schema\n",
+							"schema = StructType([\n",
+							"  StructField(\"YEAR_MONTH\", IntegerType(), True),\n",
+							"  StructField(\"REGIONAL_OFFICE_NAME\", StringType(), True),\n",
+							"  StructField(\"REGIONAL_OFFICE_CODE\", StringType(), True),\n",
+							"  StructField(\"ICB_NAME\", StringType(), True),\n",
+							"  StructField(\"ICB_CODE\", StringType(), True),\n",
+							"  StructField(\"PCO_NAME\", StringType(), True),\n",
+							"  StructField(\"PCO_CODE\", StringType(), True),\n",
+							"  StructField(\"PRACTICE_NAME\", StringType(), True),\n",
+							"  StructField(\"PRACTICE_CODE\", StringType(), True),\n",
+							"  StructField(\"ADDRESS_1\", StringType(), True),\n",
+							"  StructField(\"ADDRESS_2\", StringType(), True),\n",
+							"  StructField(\"ADDRESS_3\", StringType(), True),\n",
+							"  StructField(\"ADDRESS_4\", StringType(), True),\n",
+							"  StructField(\"POSTCODE\", StringType(), True),\n",
+							"  StructField(\"BNF_CHEMICAL_SUBSTANCE\", StringType(), True),\n",
+							"  StructField(\"CHEMICAL_SUBSTANCE_BNF_DESCR\", StringType(), True),\n",
+							"  StructField(\"BNF_CODE\", StringType(), True),\n",
+							"  StructField(\"BNF_DESCRIPTION\", StringType(), True),\n",
+							"  StructField(\"BNF_CHAPTER_PLUS_CODE\", StringType(), True),\n",
+							"  StructField(\"QUANTITY\", FloatType(), True),\n",
+							"  StructField(\"ITEMS\", IntegerType(), True),\n",
+							"  StructField(\"TOTAL_QUANTITY\", FloatType(), True),\n",
+							"  StructField(\"ADQUSAGE\", FloatType(), True),\n",
+							"  StructField(\"NIC\", FloatType(), True),\n",
+							"  StructField(\"ACTUAL_COST\", FloatType(), True),\n",
+							"  StructField(\"UNIDENTIFIED\", StringType(), True)\n",
+							"])\n",
+							"\n",
+							"# Initialize Spark session\n",
+							"spark = SparkSession.builder \\\n",
+							"    .appName(\"CSV to Parquet England\") \\\n",
+							"    .getOrCreate()"
+						],
+						"outputs": [],
+						"execution_count": 1
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"from pyspark.sql.functions import col, split\n",
+							"\n",
+							"# Read CSV file with header, enforcing schema\n",
+							"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + \"*.csv\")\n",
+							"\n",
+							"# Extract year and month from YEAR_MONTH\n",
+							"df = df.withColumn(\"YEAR\", col(\"YEAR_MONTH\").cast(\"string\").substr(1, 4).cast(\"int\"))\n",
+							"df = df.withColumn(\"MONTH\", col(\"YEAR_MONTH\").cast(\"string\").substr(5, 2).cast(\"int\"))\n",
+							"\n",
+							"# Convert to Parquet with partitioning on existing YEAR_MONTH column and append mode\n",
+							"df.write.partitionBy(\"YEAR_MONTH\").parquet(refined_zone_path, mode=\"append\")\n",
+							"\n",
+							"# Stop Spark session\n",
+							"spark.stop()"
+						],
+						"outputs": [],
+						"execution_count": 2
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/sparkpoolshs')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"autoPause": {
+					"enabled": true,
+					"delayInMinutes": 5
+				},
+				"autoScale": {
+					"enabled": false,
+					"maxNodeCount": 0,
+					"minNodeCount": 0
+				},
+				"nodeCount": 3,
+				"nodeSize": "Small",
+				"nodeSizeFamily": "MemoryOptimized",
+				"sparkVersion": "3.4",
+				"isComputeIsolationEnabled": false,
+				"sessionLevelPackagesEnabled": true,
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "uksouth"
+		}
+	]
+}
