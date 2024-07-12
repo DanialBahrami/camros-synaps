@@ -1,0 +1,23 @@
+{
+	"name": "ds_shs_resources",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "rs_shs_nhsopendata",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"query_param": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "RestResource",
+		"typeProperties": {
+			"relativeUrl": {
+				"value": "@dataset().query_param",
+				"type": "Expression"
+			}
+		},
+		"schema": []
+	}
+}
