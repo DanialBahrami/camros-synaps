@@ -262,6 +262,52 @@
 			"dependsOn": []
 		},
 		{
+			"name": "[concat(parameters('workspaceName'), '/crt_ext_ds')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "ldw"
+				},
+				"content": {
+					"query": "USE epd_ldw;\n\nIF NOT EXISTS (SELECT * FROM sys.external_data_sources WHERE name = 'epd_src')\n    CREATE EXTERNAL DATA SOURCE epd_src\n    WITH\n    (    LOCATION         = 'https://dlsshs.dfs.core.windows.net/container-epd'\n    );\n\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "master",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/crt_ext_fileformat')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"folder": {
+					"name": "ldw"
+				},
+				"content": {
+					"query": "USE epd_ldw;\n\n-- Create file format csv_file_format for parser version 2.0\nIF NOT EXISTS (SELECT * FROM sys.external_file_formats WHERE name ='csv_file_format')\n  CREATE EXTERNAL FILE FORMAT csv_file_format  \n  WITH (  \n      FORMAT_TYPE = DELIMITEDTEXT,\n      FORMAT_OPTIONS (  \n        FIELD_TERMINATOR = ','  \n      , STRING_DELIMITER = '\"'\n      , First_Row = 2\n      , USE_TYPE_DEFAULT = FALSE \n      , Encoding = 'UTF8'\n      , PARSER_VERSION = '2.0' )   \n      );  \n\n-- Create file format csv_file_format_pv1 for parser version 1.0\nIF NOT EXISTS (SELECT * FROM sys.external_file_formats WHERE name ='csv_file_format_pv1')\n  CREATE EXTERNAL FILE FORMAT csv_file_format_pv1 \n  WITH (  \n      FORMAT_TYPE = DELIMITEDTEXT,\n      FORMAT_OPTIONS (  \n        FIELD_TERMINATOR = ','  \n      , STRING_DELIMITER = '\"'\n      , First_Row = 2\n      , USE_TYPE_DEFAULT = FALSE \n      , Encoding = 'UTF8'\n      , PARSER_VERSION = '1.0' )   \n      );  \n\n-- Create external file format for parquet_file_format\nIF NOT EXISTS (SELECT * FROM sys.external_file_formats WHERE name ='parquet_file_format')\n  CREATE EXTERNAL FILE FORMAT parquet_file_format  \n  WITH (  \n        FORMAT_TYPE = PARQUET,  \n        DATA_COMPRESSION = 'org.apache.hadoop.io.compress.SnappyCodec'  \n       ); \n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "master",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/svr_crt_tbl_england')]",
 			"type": "Microsoft.Synapse/workspaces/sqlscripts",
 			"apiVersion": "2019-06-01-preview",
@@ -305,7 +351,7 @@
 						"spark.dynamicAllocation.enabled": "false",
 						"spark.dynamicAllocation.minExecutors": "2",
 						"spark.dynamicAllocation.maxExecutors": "2",
-						"spark.autotune.trackingId": "e6b55268-13e8-4e78-a217-146675f75cf9"
+						"spark.autotune.trackingId": "5c2c67ac-3e56-47d5-9c28-49d4f4e00514"
 					}
 				},
 				"metadata": {
@@ -330,8 +376,7 @@
 						"sparkVersion": "3.4",
 						"nodeCount": 3,
 						"cores": 4,
-						"memory": 28,
-						"automaticScaleJobs": false
+						"memory": 28
 					},
 					"sessionKeepAliveTimeout": 10
 				},
