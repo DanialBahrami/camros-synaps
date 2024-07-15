@@ -1,0 +1,148 @@
+{
+	"name": "pl_shs_edp_hist",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get List of Resources",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "GET",
+					"url": {
+						"value": "@concat('https://opendata.nhsbsa.net/api/3/action/package_show?id=', string(pipeline().parameters.p_pl_dataset))",
+						"type": "Expression"
+					},
+					"connectVia": {
+						"referenceName": "AutoResolveIntegrationRuntime",
+						"type": "IntegrationRuntimeReference"
+					}
+				}
+			},
+			{
+				"name": "For Each Resource",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get List of Resources",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get List of Resources').output['result']['resources']",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Copy CSV to ADLS",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Set URL",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Set File Name",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "RestSource",
+									"httpRequestTimeout": "00:01:40",
+									"requestInterval": "00.00:00:00.010",
+									"requestMethod": "GET"
+								},
+								"enableStaging": false
+							},
+							"inputs": [
+								{
+									"referenceName": "ds_rest_dynamic",
+									"type": "DatasetReference",
+									"parameters": {
+										"p_ds_url": {
+											"value": "@variables('v_pl_url')",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Set URL",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_pl_url",
+								"value": {
+									"value": "@item()['url']",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set File Name",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_pl_name",
+								"value": {
+									"value": "@item()['name']",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"p_pl_dataset": {
+				"type": "string",
+				"defaultValue": "english-prescribing-data-epd"
+			}
+		},
+		"variables": {
+			"v_pl_url": {
+				"type": "String"
+			},
+			"v_pl_name": {
+				"type": "String"
+			}
+		},
+		"annotations": []
+	}
+}
