@@ -2,14 +2,14 @@
 	"name": "ls_rest_dynamic",
 	"properties": {
 		"parameters": {
-			"p_url": {
+			"p_ls_url": {
 				"type": "String"
 			}
 		},
 		"annotations": [],
 		"type": "RestService",
 		"typeProperties": {
-			"url": "@{linkedService().p_url}",
+			"url": "@{linkedService().p_ls_url}",
 			"enableServerCertificateValidation": true,
 			"authenticationType": "Anonymous"
 		},
