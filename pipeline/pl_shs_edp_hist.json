@@ -76,6 +76,17 @@
 									"requestInterval": "00.00:00:00.010",
 									"requestMethod": "GET"
 								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".csv"
+									}
+								},
 								"enableStaging": false
 							},
 							"inputs": [
@@ -85,6 +96,18 @@
 									"parameters": {
 										"p_ds_url": {
 											"value": "@variables('v_pl_url')",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "ds_adls_edp_raw",
+									"type": "DatasetReference",
+									"parameters": {
+										"p_ds_filename": {
+											"value": "@concat(variables('v_pl_name'), '.csv')",
 											"type": "Expression"
 										}
 									}
