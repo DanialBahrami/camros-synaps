@@ -1,5 +1,6 @@
 {
 	"name": "ls_http_dynamic",
+	"type": "Microsoft.Synapse/workspaces/linkedservices",
 	"properties": {
 		"parameters": {
 			"p_ls_http_url": {
