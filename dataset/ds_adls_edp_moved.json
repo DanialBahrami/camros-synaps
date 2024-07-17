@@ -1,0 +1,32 @@
+{
+	"name": "ds_adls_edp_moved",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_adls_shs",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"p_ds_filename": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": {
+					"value": "@dataset().p_ds_filename",
+					"type": "Expression"
+				},
+				"folderPath": "moved",
+				"fileSystem": "container-epd"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": []
+	}
+}
