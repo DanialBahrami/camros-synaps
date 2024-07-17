@@ -168,6 +168,51 @@
 									}
 								}
 							]
+						},
+						{
+							"name": "Delete File",
+							"type": "Delete",
+							"dependsOn": [
+								{
+									"activity": "Move Data",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "ds_adls_edp_raw_file",
+									"type": "DatasetReference",
+									"parameters": {
+										"p_ds_filename": {
+											"value": "@item()['name']",
+											"type": "Expression"
+										}
+									}
+								},
+								"logStorageSettings": {
+									"linkedServiceName": {
+										"referenceName": "ls_adls_shs",
+										"type": "LinkedServiceReference"
+									},
+									"path": "container-epd/logs"
+								},
+								"enableLogging": true,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": false,
+									"enablePartitionDiscovery": false
+								}
+							}
 						}
 					]
 				}
