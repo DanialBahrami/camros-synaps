@@ -1,5 +1,5 @@
 {
-	"name": "ds_adls_edp_raw",
+	"name": "ds_adls_edp_raw_file",
 	"properties": {
 		"linkedServiceName": {
 			"referenceName": "ls_adls_shs",

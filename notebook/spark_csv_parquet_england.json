@@ -17,7 +17,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "5c2c67ac-3e56-47d5-9c28-49d4f4e00514"
+				"spark.autotune.trackingId": "ec48581d-db58-46ed-81fe-3f8c544154b1"
 			}
 		},
 		"metadata": {
@@ -48,6 +48,27 @@
 			"sessionKeepAliveTimeout": 10
 		},
 		"cells": [
+			{
+				"cell_type": "code",
+				"metadata": {
+					"jupyter": {
+						"source_hidden": false,
+						"outputs_hidden": false
+					},
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					},
+					"tags": [
+						"parameters"
+					]
+				},
+				"source": [
+					"filename = ''"
+				],
+				"execution_count": null
+			},
 			{
 				"cell_type": "code",
 				"metadata": {
@@ -124,7 +145,7 @@
 					"from pyspark.sql.functions import col, split\n",
 					"\n",
 					"# Read CSV file with header, enforcing schema\n",
-					"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + \"*.csv\")\n",
+					"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + filename)\n",
 					"\n",
 					"# Extract year and month from YEAR_MONTH\n",
 					"df = df.withColumn(\"YEAR\", col(\"YEAR_MONTH\").cast(\"string\").substr(1, 4).cast(\"int\"))\n",

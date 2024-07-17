@@ -1,5 +1,5 @@
 {
-	"name": "pl_shs_edp_hist",
+	"name": "pl_http_csv_adls",
 	"properties": {
 		"activities": [
 			{
@@ -116,7 +116,7 @@
 							],
 							"outputs": [
 								{
-									"referenceName": "ds_adls_edp_raw",
+									"referenceName": "ds_adls_edp_raw_file",
 									"type": "DatasetReference",
 									"parameters": {
 										"p_ds_filename": {
