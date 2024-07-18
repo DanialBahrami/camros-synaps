@@ -5,11 +5,17 @@
 		"workspaceName": {
 			"value": "syn-ws-shs"
 		},
+		"ls_adls_shs_accountKey": {
+			"value": ""
+		},
 		"syn-ws-shs-WorkspaceDefaultSqlServer_connectionString": {
 			"value": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:syn-ws-shs.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
 		},
-		"rs_shs_nhsopendata_properties_typeProperties_url": {
-			"value": "https://opendata.nhsbsa.net/api/3/action/"
+		"ls_adls_shs_properties_typeProperties_url": {
+			"value": "https://dlsshs.dfs.core.windows.net/"
+		},
+		"ls_http_dynamic_properties_typeProperties_url": {
+			"value": "@{linkedService().p_ls_http_url}"
 		},
 		"syn-ws-shs-WorkspaceDefaultStorage_properties_typeProperties_url": {
 			"value": "https://dlsshs.dfs.core.windows.net"

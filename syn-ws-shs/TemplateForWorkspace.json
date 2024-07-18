@@ -7,14 +7,22 @@
 			"metadata": "Workspace name",
 			"defaultValue": "syn-ws-shs"
 		},
+		"ls_adls_shs_accountKey": {
+			"type": "secureString",
+			"metadata": "Secure string for 'accountKey' of 'ls_adls_shs'"
+		},
 		"syn-ws-shs-WorkspaceDefaultSqlServer_connectionString": {
 			"type": "secureString",
 			"metadata": "Secure string for 'connectionString' of 'syn-ws-shs-WorkspaceDefaultSqlServer'",
 			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:syn-ws-shs.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
 		},
-		"rs_shs_nhsopendata_properties_typeProperties_url": {
+		"ls_adls_shs_properties_typeProperties_url": {
 			"type": "string",
-			"defaultValue": "https://opendata.nhsbsa.net/api/3/action/"
+			"defaultValue": "https://dlsshs.dfs.core.windows.net/"
+		},
+		"ls_http_dynamic_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "@{linkedService().p_ls_http_url}"
 		},
 		"syn-ws-shs-WorkspaceDefaultStorage_properties_typeProperties_url": {
 			"type": "string",
@@ -26,42 +34,713 @@
 	},
 	"resources": [
 		{
-			"name": "[concat(parameters('workspaceName'), '/ds_shs_resources')]",
+			"name": "[concat(parameters('workspaceName'), '/pl_csv_parquet')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Get File Names",
+						"type": "GetMetadata",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataset": {
+								"referenceName": "ds_adls_edp_raw_folder",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"fieldList": [
+								"childItems"
+							],
+							"storeSettings": {
+								"type": "AzureBlobFSReadSettings",
+								"recursive": true,
+								"enablePartitionDiscovery": false
+							},
+							"formatSettings": {
+								"type": "BinaryReadSettings"
+							}
+						}
+					},
+					{
+						"name": "For Each File",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Get File Names",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Get File Names').output.childItems",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "Notebook Spark CSV to Parquet",
+									"type": "SynapseNotebook",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"notebook": {
+											"referenceName": "spark_csv_parquet_england",
+											"type": "NotebookReference"
+										},
+										"parameters": {
+											"filename": {
+												"value": {
+													"value": "@item()['name']",
+													"type": "Expression"
+												},
+												"type": "string"
+											}
+										},
+										"snapshot": true,
+										"sparkPool": {
+											"referenceName": "sparkpoolshs",
+											"type": "BigDataPoolReference"
+										},
+										"executorSize": "Small",
+										"conf": {
+											"spark.dynamicAllocation.enabled": null,
+											"spark.dynamicAllocation.minExecutors": null,
+											"spark.dynamicAllocation.maxExecutors": null
+										},
+										"driverSize": "Small",
+										"numExecutors": null
+									}
+								},
+								{
+									"name": "Move Data",
+									"type": "Copy",
+									"dependsOn": [
+										{
+											"activity": "Notebook Spark CSV to Parquet",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "DelimitedTextSource",
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": false,
+												"enablePartitionDiscovery": false
+											},
+											"formatSettings": {
+												"type": "DelimitedTextReadSettings"
+											}
+										},
+										"sink": {
+											"type": "DelimitedTextSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextWriteSettings",
+												"quoteAllText": true,
+												"fileExtension": ".txt"
+											}
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "ds_adls_edp_raw_file",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_ds_filename": {
+													"value": "@item()['name']",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "ds_adls_edp_moved",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_ds_filename": {
+													"value": "@concat(utcnow(),'_',item()['name'])",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "Delete File",
+									"type": "Delete",
+									"dependsOn": [
+										{
+											"activity": "Move Data",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"dataset": {
+											"referenceName": "ds_adls_edp_raw_file",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_ds_filename": {
+													"value": "@item()['name']",
+													"type": "Expression"
+												}
+											}
+										},
+										"logStorageSettings": {
+											"linkedServiceName": {
+												"referenceName": "ls_adls_shs",
+												"type": "LinkedServiceReference"
+											},
+											"path": "container-epd/logs"
+										},
+										"enableLogging": true,
+										"storeSettings": {
+											"type": "AzureBlobFSReadSettings",
+											"recursive": false,
+											"enablePartitionDiscovery": false
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/ds_adls_edp_raw_folder')]",
+				"[concat(variables('workspaceId'), '/notebooks/spark_csv_parquet_england')]",
+				"[concat(variables('workspaceId'), '/bigDataPools/sparkpoolshs')]",
+				"[concat(variables('workspaceId'), '/datasets/ds_adls_edp_raw_file')]",
+				"[concat(variables('workspaceId'), '/datasets/ds_adls_edp_moved')]",
+				"[concat(variables('workspaceId'), '/linkedServices/ls_adls_shs')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/pl_http_csv_adls')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Get List of Resources",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": {
+								"value": "@concat('https://opendata.nhsbsa.net/api/3/action/package_show?id=', string(pipeline().parameters.p_pl_dataset))",
+								"type": "Expression"
+							},
+							"connectVia": {
+								"referenceName": "AutoResolveIntegrationRuntime",
+								"type": "IntegrationRuntimeReference"
+							}
+						}
+					},
+					{
+						"name": "For Each Resource",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Get List of Resources",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Get List of Resources').output['result']['resources']",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "Copy CSV to ADLS",
+									"type": "Copy",
+									"dependsOn": [
+										{
+											"activity": "Set URL",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										},
+										{
+											"activity": "Set File Name",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "DelimitedTextSource",
+											"storeSettings": {
+												"type": "HttpReadSettings",
+												"requestMethod": "GET"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextReadSettings"
+											}
+										},
+										"sink": {
+											"type": "DelimitedTextSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextWriteSettings",
+												"quoteAllText": true,
+												"fileExtension": ".csv"
+											}
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "ds_http_dynamic",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_ds_url": {
+													"value": "@variables('v_pl_url')",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "ds_adls_edp_raw_file",
+											"type": "DatasetReference",
+											"parameters": {
+												"p_ds_filename": {
+													"value": "@concat(variables('v_pl_name'), '.csv')",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "Set URL",
+									"type": "SetVariable",
+									"dependsOn": [],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_pl_url",
+										"value": {
+											"value": "@item()['url']",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Set File Name",
+									"type": "SetVariable",
+									"dependsOn": [],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_pl_name",
+										"value": {
+											"value": "@item()['name']",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"p_pl_dataset": {
+						"type": "string",
+						"defaultValue": "english-prescribing-data-epd"
+					}
+				},
+				"variables": {
+					"v_pl_url": {
+						"type": "String"
+					},
+					"v_pl_name": {
+						"type": "String"
+					}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]",
+				"[concat(variables('workspaceId'), '/datasets/ds_http_dynamic')]",
+				"[concat(variables('workspaceId'), '/datasets/ds_adls_edp_raw_file')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ds_adls_edp_moved')]",
 			"type": "Microsoft.Synapse/workspaces/datasets",
 			"apiVersion": "2019-06-01-preview",
 			"properties": {
 				"linkedServiceName": {
-					"referenceName": "rs_shs_nhsopendata",
+					"referenceName": "ls_adls_shs",
 					"type": "LinkedServiceReference"
 				},
 				"parameters": {
-					"query_param": {
+					"p_ds_filename": {
 						"type": "string"
 					}
 				},
 				"annotations": [],
-				"type": "RestResource",
+				"type": "DelimitedText",
 				"typeProperties": {
-					"relativeUrl": {
-						"value": "@dataset().query_param",
-						"type": "Expression"
-					}
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().p_ds_filename",
+							"type": "Expression"
+						},
+						"folderPath": "moved",
+						"fileSystem": "container-epd"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
 				},
 				"schema": []
 			},
 			"dependsOn": [
-				"[concat(variables('workspaceId'), '/linkedServices/rs_shs_nhsopendata')]"
+				"[concat(variables('workspaceId'), '/linkedServices/ls_adls_shs')]"
 			]
 		},
 		{
-			"name": "[concat(parameters('workspaceName'), '/rs_shs_nhsopendata')]",
+			"name": "[concat(parameters('workspaceName'), '/ds_adls_edp_raw_file')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_shs",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"p_ds_filename": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().p_ds_filename",
+							"type": "Expression"
+						},
+						"folderPath": "raw",
+						"fileSystem": "container-epd"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "YEAR_MONTH",
+						"type": "String"
+					},
+					{
+						"name": "REGIONAL_OFFICE_NAME",
+						"type": "String"
+					},
+					{
+						"name": "REGIONAL_OFFICE_CODE",
+						"type": "String"
+					},
+					{
+						"name": "ICB_NAME",
+						"type": "String"
+					},
+					{
+						"name": "ICB_CODE",
+						"type": "String"
+					},
+					{
+						"name": "PCO_NAME",
+						"type": "String"
+					},
+					{
+						"name": "PCO_CODE",
+						"type": "String"
+					},
+					{
+						"name": "PRACTICE_NAME",
+						"type": "String"
+					},
+					{
+						"name": "PRACTICE_CODE",
+						"type": "String"
+					},
+					{
+						"name": "ADDRESS_1",
+						"type": "String"
+					},
+					{
+						"name": "ADDRESS_2",
+						"type": "String"
+					},
+					{
+						"name": "ADDRESS_3",
+						"type": "String"
+					},
+					{
+						"name": "ADDRESS_4",
+						"type": "String"
+					},
+					{
+						"name": "POSTCODE",
+						"type": "String"
+					},
+					{
+						"name": "BNF_CHEMICAL_SUBSTANCE",
+						"type": "String"
+					},
+					{
+						"name": "CHEMICAL_SUBSTANCE_BNF_DESCR",
+						"type": "String"
+					},
+					{
+						"name": "BNF_CODE",
+						"type": "String"
+					},
+					{
+						"name": "BNF_DESCRIPTION",
+						"type": "String"
+					},
+					{
+						"name": "BNF_CHAPTER_PLUS_CODE",
+						"type": "String"
+					},
+					{
+						"name": "QUANTITY",
+						"type": "String"
+					},
+					{
+						"name": "ITEMS",
+						"type": "String"
+					},
+					{
+						"name": "TOTAL_QUANTITY",
+						"type": "String"
+					},
+					{
+						"name": "ADQUSAGE",
+						"type": "String"
+					},
+					{
+						"name": "NIC",
+						"type": "String"
+					},
+					{
+						"name": "ACTUAL_COST",
+						"type": "String"
+					},
+					{
+						"name": "UNIDENTIFIED",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/ls_adls_shs')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ds_adls_edp_raw_folder')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_adls_shs",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Binary",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "raw",
+						"fileSystem": "container-epd"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/ls_adls_shs')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ds_http_dynamic')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ls_http_dynamic",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_ls_http_url": {
+							"value": "@dataset().p_ds_url",
+							"type": "Expression"
+						}
+					}
+				},
+				"parameters": {
+					"p_ds_url": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "HttpServerLocation"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/ls_http_dynamic')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ls_adls_shs')]",
 			"type": "Microsoft.Synapse/workspaces/linkedServices",
 			"apiVersion": "2019-06-01-preview",
 			"properties": {
 				"annotations": [],
-				"type": "RestService",
+				"type": "AzureBlobFS",
 				"typeProperties": {
-					"url": "[parameters('rs_shs_nhsopendata_properties_typeProperties_url')]",
+					"url": "[parameters('ls_adls_shs_properties_typeProperties_url')]",
+					"accountKey": {
+						"type": "SecureString",
+						"value": "[parameters('ls_adls_shs_accountKey')]"
+					}
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ls_http_dynamic')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"p_ls_http_url": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "HttpServer",
+				"typeProperties": {
+					"url": "[parameters('ls_http_dynamic_properties_typeProperties_url')]",
 					"enableServerCertificateValidation": true,
 					"authenticationType": "Anonymous"
 				},
@@ -155,7 +834,7 @@
 					"name": "ldw/bronze"
 				},
 				"content": {
-					"query": "USE epd_ldw\nGO\n\nIF OBJECT_ID('bronze.england') IS NOT NULL\n    DROP EXTERNAL TABLE bronze.england;\n\nCREATE EXTERNAL TABLE bronze.england (\n\t[YEAR_MONTH][BIGINT] NULL,\n\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n\t[ICB_NAME][varchar](500) NULL,\n\t[ICB_CODE][varchar](500) NULL,\n\t[PCO_NAME][varchar](500) NULL,\n\t[PCO_CODE][varchar](500) NULL,\n\t[PRACTICE_NAME][varchar](500) NULL,\n\t[PRACTICE_CODE][varchar](500) NULL,\n\t[ADDRESS_1][varchar](500) NULL,\n\t[ADDRESS_2][varchar](500) NULL,\n\t[ADDRESS_3][varchar](500) NULL,\n\t[ADDRESS_4][varchar](500) NULL,\n\t[POSTCODE][varchar](500) NULL,\n\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n\t[BNF_CODE][varchar](500) NULL,\n\t[BNF_DESCRIPTION][varchar](500) NULL,\n\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n\t[QUANTITY][FLOAT] NULL,\n\t[ITEMS][INT] NULL,\n\t[TOTAL_QUANTITY][FLOAT] NULL,\n\t[ADQUSAGE][FLOAT] NULL,\n\t[NIC][FLOAT] NULL,\n\t[ACTUAL_COST][FLOAT] NULL,\n\t[UNIDENTIFIED][varchar](500) NULL\n\t)\n\tWITH (\n\tLOCATION = 'raw/epd_202404.csv'\n\t,DATA_SOURCE = epd_src\n\t,FILE_FORMAT = csv_file_format_pv1\n\t)\nGO\n\n\nSELECT TOP 100 * FROM bronze.england\nGO\n",
+					"query": "USE epd_ldw\nGO\n\nIF OBJECT_ID('bronze.england') IS NOT NULL\n    DROP EXTERNAL TABLE bronze.england;\n\nCREATE EXTERNAL TABLE bronze.england (\n\t[YEAR_MONTH][BIGINT] NULL,\n\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n\t[ICB_NAME][varchar](500) NULL,\n\t[ICB_CODE][varchar](500) NULL,\n\t[PCO_NAME][varchar](500) NULL,\n\t[PCO_CODE][varchar](500) NULL,\n\t[PRACTICE_NAME][varchar](500) NULL,\n\t[PRACTICE_CODE][varchar](500) NULL,\n\t[ADDRESS_1][varchar](500) NULL,\n\t[ADDRESS_2][varchar](500) NULL,\n\t[ADDRESS_3][varchar](500) NULL,\n\t[ADDRESS_4][varchar](500) NULL,\n\t[POSTCODE][varchar](500) NULL,\n\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n\t[BNF_CODE][varchar](500) NULL,\n\t[BNF_DESCRIPTION][varchar](500) NULL,\n\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n\t[QUANTITY][FLOAT] NULL,\n\t[ITEMS][INT] NULL,\n\t[TOTAL_QUANTITY][FLOAT] NULL,\n\t[ADQUSAGE][FLOAT] NULL,\n\t[NIC][FLOAT] NULL,\n\t[ACTUAL_COST][FLOAT] NULL,\n\t[UNIDENTIFIED][varchar](500) NULL\n\t)\n\tWITH (\n\tLOCATION = 'raw/EPD_201401.csv'\n\t,DATA_SOURCE = epd_src\n\t,FILE_FORMAT = csv_file_format_pv1\n\t)\nGO\n\n\nSELECT TOP 100 * FROM bronze.england\nGO\n",
 					"metadata": {
 						"language": "sql"
 					},
@@ -184,52 +863,6 @@
 					},
 					"currentConnection": {
 						"databaseName": "master",
-						"poolName": "Built-in"
-					},
-					"resultLimit": 5000
-				},
-				"type": "SqlQuery"
-			},
-			"dependsOn": []
-		},
-		{
-			"name": "[concat(parameters('workspaceName'), '/create_ext_data_sources')]",
-			"type": "Microsoft.Synapse/workspaces/sqlscripts",
-			"apiVersion": "2019-06-01-preview",
-			"properties": {
-				"folder": {
-					"name": "ldw"
-				},
-				"content": {
-					"query": "USE epd_ldw;\n\nIF NOT EXISTS (SELECT * FROM sys.external_data_sources WHERE name = 'edp_src')\n    CREATE EXTERNAL DATA SOURCE edp_src\n    WITH\n    (    LOCATION         = 'https://dlsshs.dfs.core.windows.net/container-epd'\n    );\n",
-					"metadata": {
-						"language": "sql"
-					},
-					"currentConnection": {
-						"databaseName": "epd_ldw",
-						"poolName": "Built-in"
-					},
-					"resultLimit": 5000
-				},
-				"type": "SqlQuery"
-			},
-			"dependsOn": []
-		},
-		{
-			"name": "[concat(parameters('workspaceName'), '/create_extrenal_data_source')]",
-			"type": "Microsoft.Synapse/workspaces/sqlscripts",
-			"apiVersion": "2019-06-01-preview",
-			"properties": {
-				"folder": {
-					"name": "ldw"
-				},
-				"content": {
-					"query": "USE epd_ldw;\n\nIF NOT EXISTS (SELECT * FROM sys.external_data_sources WHERE name = 'edp_src')\n    CREATE EXTERNAL DATA SOURCE edp_src\n    WITH\n    (    LOCATION         = 'https://dlsshs.dfs.core.windows.net/container-epd'\n    );\n",
-					"metadata": {
-						"language": "sql"
-					},
-					"currentConnection": {
-						"databaseName": "epd_ldw",
 						"poolName": "Built-in"
 					},
 					"resultLimit": 5000
@@ -316,7 +949,7 @@
 					"name": "ldw/silver"
 				},
 				"content": {
-					"query": "USE epd_ldw\nGO\n\nIF OBJECT_ID('silver.england') IS NOT NULL\n    DROP EXTERNAL TABLE silver.england;\n\nCREATE EXTERNAL TABLE silver.england (\n\t[YEAR][INT] NULL,\n\t[MONTH][INT] NULL,\n\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n\t[ICB_NAME][varchar](500) NULL,\n\t[ICB_CODE][varchar](500) NULL,\n\t[PCO_NAME][varchar](500) NULL,\n\t[PCO_CODE][varchar](500) NULL,\n\t[PRACTICE_NAME][varchar](500) NULL,\n\t[PRACTICE_CODE][varchar](500) NULL,\n\t[ADDRESS_1][varchar](500) NULL,\n\t[ADDRESS_2][varchar](500) NULL,\n\t[ADDRESS_3][varchar](500) NULL,\n\t[ADDRESS_4][varchar](500) NULL,\n\t[POSTCODE][varchar](500) NULL,\n\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n\t[BNF_CODE][varchar](500) NULL,\n\t[BNF_DESCRIPTION][varchar](500) NULL,\n\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n\t[QUANTITY][FLOAT] NULL,\n\t[ITEMS][INT] NULL,\n\t[TOTAL_QUANTITY][FLOAT] NULL,\n\t[ADQUSAGE][FLOAT] NULL,\n\t[NIC][FLOAT] NULL,\n\t[ACTUAL_COST][FLOAT] NULL,\n\t[UNIDENTIFIED][varchar](500) NULL\n\t)\n\tWITH (\n\tLOCATION = '/refined/**',\n    DATA_SOURCE = epd_src,\n    FILE_FORMAT = parquet_file_format\n\t)\n\n\nSELECT TOP 100 * FROM silver.england",
+					"query": "USE epd_ldw\nGO\n\nIF OBJECT_ID('silver.england') IS NOT NULL\n    DROP EXTERNAL TABLE silver.england;\n\nCREATE EXTERNAL TABLE silver.england (\n\t[YEAR][INT] NULL,\n\t[MONTH][INT] NULL,\n\t[REGIONAL_OFFICE_NAME][varchar](500) NULL,\n\t[REGIONAL_OFFICE_CODE][varchar](500) NULL,\n\t[ICB_NAME][varchar](500) NULL,\n\t[ICB_CODE][varchar](500) NULL,\n\t[PCO_NAME][varchar](500) NULL,\n\t[PCO_CODE][varchar](500) NULL,\n\t[PRACTICE_NAME][varchar](500) NULL,\n\t[PRACTICE_CODE][varchar](500) NULL,\n\t[ADDRESS_1][varchar](500) NULL,\n\t[ADDRESS_2][varchar](500) NULL,\n\t[ADDRESS_3][varchar](500) NULL,\n\t[ADDRESS_4][varchar](500) NULL,\n\t[POSTCODE][varchar](500) NULL,\n\t[BNF_CHEMICAL_SUBSTANCE][varchar](500) NULL,\n\t[CHEMICAL_SUBSTANCE_BNF_DESCR][varchar](500) NULL,\n\t[BNF_CODE][varchar](500) NULL,\n\t[BNF_DESCRIPTION][varchar](500) NULL,\n\t[BNF_CHAPTER_PLUS_CODE][varchar](500) NULL,\n\t[QUANTITY][FLOAT] NULL,\n\t[ITEMS][INT] NULL,\n\t[TOTAL_QUANTITY][FLOAT] NULL,\n\t[ADQUSAGE][FLOAT] NULL,\n\t[NIC][FLOAT] NULL,\n\t[ACTUAL_COST][FLOAT] NULL,\n\t[UNIDENTIFIED][varchar](500) NULL\n\t)\n\tWITH (\n\tLOCATION = '/refined/**',\n    DATA_SOURCE = epd_src,\n    FILE_FORMAT = parquet_file_format\n\t)\n\n\nSELECT COUNT(*) FROM silver.england",
 					"metadata": {
 						"language": "sql"
 					},
@@ -351,7 +984,7 @@
 						"spark.dynamicAllocation.enabled": "false",
 						"spark.dynamicAllocation.minExecutors": "2",
 						"spark.dynamicAllocation.maxExecutors": "2",
-						"spark.autotune.trackingId": "5c2c67ac-3e56-47d5-9c28-49d4f4e00514"
+						"spark.autotune.trackingId": "ec48581d-db58-46ed-81fe-3f8c544154b1"
 					}
 				},
 				"metadata": {
@@ -381,6 +1014,28 @@
 					"sessionKeepAliveTimeout": 10
 				},
 				"cells": [
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"source_hidden": false,
+								"outputs_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"tags": [
+								"parameters"
+							]
+						},
+						"source": [
+							"filename = ''"
+						],
+						"outputs": [],
+						"execution_count": null
+					},
 					{
 						"cell_type": "code",
 						"metadata": {
@@ -458,7 +1113,7 @@
 							"from pyspark.sql.functions import col, split\n",
 							"\n",
 							"# Read CSV file with header, enforcing schema\n",
-							"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + \"*.csv\")\n",
+							"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + filename)\n",
 							"\n",
 							"# Extract year and month from YEAR_MONTH\n",
 							"df = df.withColumn(\"YEAR\", col(\"YEAR_MONTH\").cast(\"string\").substr(1, 4).cast(\"int\"))\n",
