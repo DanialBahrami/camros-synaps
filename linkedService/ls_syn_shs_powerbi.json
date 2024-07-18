@@ -1,0 +1,11 @@
+{
+	"name": "ls_syn_shs_powerbi",
+	"properties": {
+		"annotations": [],
+		"type": "PowerBIWorkspace",
+		"typeProperties": {
+			"workspaceID": "19c7ad6a-f928-4383-afde-5aee65d1c076",
+			"tenantID": "44bb8895-fe47-42e3-b8d6-04104af43346"
+		}
+	}
+}
