@@ -1005,7 +1005,7 @@
 						"spark.dynamicAllocation.enabled": "false",
 						"spark.dynamicAllocation.minExecutors": "2",
 						"spark.dynamicAllocation.maxExecutors": "2",
-						"spark.autotune.trackingId": "7cca4131-a66c-4280-aa1b-20663cda3fcf"
+						"spark.autotune.trackingId": "2fd91949-18c9-4244-8549-50b75b5d4f89"
 					}
 				},
 				"metadata": {
@@ -1134,7 +1134,6 @@
 						"source": [
 							"from pyspark.sql.functions import col, split, to_timestamp, lit\n",
 							"\n",
-							"filename = 'EPD_201401.csv'\n",
 							"# Read CSV file with header, enforcing schema\n",
 							"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + filename)\n",
 							"\n",
