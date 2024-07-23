@@ -75,6 +75,13 @@
 											"type": "Expression"
 										},
 										"type": "string"
+									},
+									"current_time": {
+										"value": {
+											"value": "@utcnow()",
+											"type": "Expression"
+										},
+										"type": "string"
 									}
 								},
 								"snapshot": true,

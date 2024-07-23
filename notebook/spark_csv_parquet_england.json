@@ -17,7 +17,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "ec48581d-db58-46ed-81fe-3f8c544154b1"
+				"spark.autotune.trackingId": "7cca4131-a66c-4280-aa1b-20663cda3fcf"
 			}
 		},
 		"metadata": {
@@ -65,9 +65,10 @@
 					]
 				},
 				"source": [
-					"filename = ''"
+					"filename = 'filename'\n",
+					"current_time = '1970-01-01 00:00:00'"
 				],
-				"execution_count": null
+				"execution_count": 1
 			},
 			{
 				"cell_type": "code",
@@ -126,7 +127,7 @@
 					"    .appName(\"CSV to Parquet England\") \\\n",
 					"    .getOrCreate()"
 				],
-				"execution_count": 1
+				"execution_count": 2
 			},
 			{
 				"cell_type": "code",
@@ -142,8 +143,9 @@
 					}
 				},
 				"source": [
-					"from pyspark.sql.functions import col, split\n",
+					"from pyspark.sql.functions import col, split, to_timestamp, lit\n",
 					"\n",
+					"filename = 'EPD_201401.csv'\n",
 					"# Read CSV file with header, enforcing schema\n",
 					"df = spark.read.option(\"header\", \"true\").schema(schema).csv(raw_zone_path + filename)\n",
 					"\n",
@@ -151,13 +153,17 @@
 					"df = df.withColumn(\"YEAR\", col(\"YEAR_MONTH\").cast(\"string\").substr(1, 4).cast(\"int\"))\n",
 					"df = df.withColumn(\"MONTH\", col(\"YEAR_MONTH\").cast(\"string\").substr(5, 2).cast(\"int\"))\n",
 					"\n",
+					"df = df.withColumn(\"m_source_filename\", lit(filename))\n",
+					"df = df.withColumn(\"m_ingestion_time\", to_timestamp(lit(current_time)))\n",
+					"\n",
+					"\n",
 					"# Convert to Parquet with partitioning on existing YEAR_MONTH column and append mode\n",
 					"df.write.partitionBy(\"YEAR_MONTH\").parquet(refined_zone_path, mode=\"append\")\n",
 					"\n",
 					"# Stop Spark session\n",
 					"spark.stop()"
 				],
-				"execution_count": 2
+				"execution_count": 3
 			}
 		]
 	}
